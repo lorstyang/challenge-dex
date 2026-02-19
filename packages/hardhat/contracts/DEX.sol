@@ -58,7 +58,10 @@ contract DEX {
     }
 
     function price(uint256 xInput, uint256 xReserves, uint256 yReserves) public pure returns (uint256 yOutput) {
-        // Your code here...
+        uint256 xInputWithFee = xInput * 997; // 0.3% fee
+        uint256 numerator = xInputWithFee * yReserves;
+        uint256 denominator = (xReserves * 1000) + xInputWithFee;
+        return numerator / denominator;
     }
 
     function getLiquidity(address lp) public view returns (uint256 lpLiquidity) {

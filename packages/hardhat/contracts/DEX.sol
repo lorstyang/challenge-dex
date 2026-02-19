@@ -8,13 +8,16 @@ contract DEX {
     /// Errors //////
     /////////////////
 
-    // Errors go here
+    error DexAlreadyInitialized();
+    error TokenTransferFailed();
 
     //////////////////////
     /// State Variables //
     //////////////////////
 
     IERC20 public immutable token;
+    uint256 public totalLiquidity;
+    mapping(address => uint256) liquidity;
 
     ////////////////
     /// Events /////
@@ -28,6 +31,7 @@ contract DEX {
 
     constructor(address tokenAddr) {
         token = IERC20(tokenAddr);
+        init(0);
     }
 
     ///////////////////
@@ -35,7 +39,19 @@ contract DEX {
     ///////////////////
 
     function init(uint256 tokens) public payable returns (uint256 initialLiquidity) {
-        // Your code here...
+        // Pool can only be initialized once.
+        if (totalLiquidity != 0)
+            revert DexAlreadyInitialized();
+
+        // ETH arrives before function execution, so balance includes msg.value here.
+        initialLiquidity = address(this).balance;
+        totalLiquidity = initialLiquidity;
+        liquidity[msg.sender] = initialLiquidity;
+
+        if (!token.transferFrom(msg.sender, address(this), tokens))
+            revert TokenTransferFailed();
+        
+        return initialLiquidity;
     }
 
     function price(uint256 xInput, uint256 xReserves, uint256 yReserves) public pure returns (uint256 yOutput) {
@@ -43,7 +59,7 @@ contract DEX {
     }
 
     function getLiquidity(address lp) public view returns (uint256 lpLiquidity) {
-        // Your code here...
+        return liquidity[lp];
     }
 
     function ethToToken() public payable returns (uint256 tokenOutput) {

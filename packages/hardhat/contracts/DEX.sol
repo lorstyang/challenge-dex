@@ -23,7 +23,10 @@ contract DEX {
     /// Events /////
     ////////////////
 
-    // Events go here...
+    event EthToTokenSwap(address indexed swapper, uint256 ethInput, uint256 tokenOutput);
+    event TokenToEthSwap(address indexed swapper, uint256 tokensInput, uint256 ethOutput);
+    event LiquidityProvided(address indexed liquidityProvider, uint256 ethInput, uint256 tokensInput, uint256 liquidityMinted);
+    event LiquidityRemoved(address indexed liquidityRemover, uint256 ethOutput, uint256 tokensOutput, uint256 liquidityWithdrawn);
 
     ///////////////////
     /// Constructor ///

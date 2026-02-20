@@ -10,6 +10,11 @@ contract DEX {
 
     error DexAlreadyInitialized();
     error TokenTransferFailed();
+    error InvalidEthAmount();
+    error InvalidTokenAmount();
+    error InsufficientTokenBalance(uint256 available, uint256 required);
+    error InsufficientTokenAllowance(uint256 available, uint256 required);
+    error EthTransferFailed(address to, uint256 amount);
 
     //////////////////////
     /// State Variables //
@@ -23,7 +28,7 @@ contract DEX {
     /// Events /////
     ////////////////
 
-    event EthToTokenSwap(address indexed swapper, uint256 ethInput, uint256 tokenOutput);
+    event EthToTokenSwap(address indexed swapper, uint256 tokenOutput, uint256 ethInput);
     event TokenToEthSwap(address indexed swapper, uint256 tokensInput, uint256 ethOutput);
     event LiquidityProvided(address indexed liquidityProvider, uint256 ethInput, uint256 tokensInput, uint256 liquidityMinted);
     event LiquidityRemoved(address indexed liquidityRemover, uint256 ethOutput, uint256 tokensOutput, uint256 liquidityWithdrawn);
@@ -69,11 +74,37 @@ contract DEX {
     }
 
     function ethToToken() public payable returns (uint256 tokenOutput) {
-        // Your code here...
+        uint256 xInput = msg.value;
+        if (0 == xInput) revert InvalidEthAmount();
+
+        uint256 ethReserve = address(this).balance - msg.value;
+        uint256 tokenReserve = token.balanceOf(address(this));
+        tokenOutput = price(xInput, ethReserve, tokenReserve);
+
+        if (!token.transfer(msg.sender, tokenOutput)) revert TokenTransferFailed();
+        
+        emit EthToTokenSwap(msg.sender, tokenOutput, xInput);
+        return tokenOutput;
     }
 
     function tokenToEth(uint256 tokenInput) public returns (uint256 ethOutput) {
-        // Your code here...
+        if (0 == tokenInput) revert InvalidTokenAmount();
+
+        uint256 senderBal = token.balanceOf(msg.sender);
+        if (senderBal < tokenInput) revert InsufficientTokenBalance(senderBal, tokenInput);
+
+        uint256 allow = token.allowance(msg.sender, address(this));
+        if (allow < tokenInput) revert InsufficientTokenAllowance(allow, tokenInput);
+        
+        uint256 tokenReserve = token.balanceOf(address(this));
+        ethOutput = price(tokenInput, tokenReserve, address(this).balance);
+        
+        if (!token.transferFrom(msg.sender, address(this), tokenInput)) revert TokenTransferFailed();
+
+        (bool sent, ) = msg.sender.call{ value: ethOutput }("");
+        if (!sent) revert EthTransferFailed(msg.sender, ethOutput);
+        emit TokenToEthSwap(msg.sender, tokenInput, ethOutput);
+        return ethOutput;
     }
 
     function deposit() public payable returns (uint256 tokensDeposited) {

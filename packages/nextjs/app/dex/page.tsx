@@ -103,10 +103,10 @@ const Dex: NextPage = () => {
     <>
       <h1 className="text-center mb-4 mt-5">
         <span className="block text-xl text-right mr-7">
-          🎈: {parseFloat(formatEther(userBalloons || 0n)).toFixed(4)}
+          🎈(your tokens in wallet): {parseFloat(formatEther(userBalloons || 0n)).toFixed(4)}
         </span>
         <span className="block text-xl text-right mr-7">
-          💦💦: {parseFloat(formatEther(userLiquidity || 0n)).toFixed(4)}
+          💦💦(your liquidity): {parseFloat(formatEther(userLiquidity || 0n)).toFixed(4)}
         </span>
         <span className="block text-2xl mb-2">Speedrun Ethereum</span>
         <span className="block text-4xl font-bold">Challenge: ⚖️ Build a DEX </span>

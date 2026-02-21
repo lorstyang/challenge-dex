@@ -15,6 +15,7 @@ contract DEX {
     error InsufficientTokenBalance(uint256 available, uint256 required);
     error InsufficientTokenAllowance(uint256 available, uint256 required);
     error EthTransferFailed(address to, uint256 amount);
+    error InsufficientLiquidity(uint256 available, uint256 required);
 
     //////////////////////
     /// State Variables //
@@ -30,9 +31,8 @@ contract DEX {
 
     event EthToTokenSwap(address indexed swapper, uint256 tokenOutput, uint256 ethInput);
     event TokenToEthSwap(address indexed swapper, uint256 tokensInput, uint256 ethOutput);
-    event LiquidityProvided(address indexed liquidityProvider, uint256 ethInput, uint256 tokensInput, uint256 liquidityMinted);
-    event LiquidityRemoved(address indexed liquidityRemover, uint256 ethOutput, uint256 tokensOutput, uint256 liquidityWithdrawn);
-
+    event LiquidityProvided(address indexed liquidityProvider, uint256 liquidityMinted, uint256 ethInput, uint256 tokensInput);
+    event LiquidityRemoved(address indexed liquidityRemover, uint256 liquidityWithdrawn, uint256 tokensOutput, uint256 ethOutput);
     ///////////////////
     /// Constructor ///
     ///////////////////
@@ -52,6 +52,14 @@ contract DEX {
             revert DexAlreadyInitialized();
 
         // ETH arrives before function execution, so balance includes msg.value here.
+        /*
+        初始流动性和 ETH 数量一样，但并不代表 liquidity 等于 ETH 数量
+        如果把 LP token 总量直接定义为 address(this).balance。
+        会出现如下问题：
+        当有人 swap 时，ETH 会变化
+        但 swap 不应改变 LP 份额结构
+        若用 ETH 余额做份额总量，swap 会稀释或膨胀 LP
+        */
         initialLiquidity = address(this).balance;
         totalLiquidity = initialLiquidity;
         liquidity[msg.sender] = initialLiquidity;
@@ -108,10 +116,45 @@ contract DEX {
     }
 
     function deposit() public payable returns (uint256 tokensDeposited) {
-        // Your code here...
+        uint256 ethInput = msg.value;
+        if (0 == ethInput) revert InvalidEthAmount();
+
+        uint256 tokenReserve = token.balanceOf(address(this));
+        uint256 ethReserve = address(this).balance - ethInput;
+        uint256 tokenDeposit = (ethInput * tokenReserve / ethReserve) + 1;
+
+        uint256 senderBal = token.balanceOf(msg.sender);
+        if (senderBal < tokenDeposit) revert InsufficientTokenBalance(senderBal, tokenDeposit);
+
+        uint256 allow = token.allowance(msg.sender, address(this));
+        if (allow < tokenDeposit) revert InsufficientTokenAllowance(allow, tokenDeposit);
+
+        uint256 liquidityMinted = ethInput * totalLiquidity / ethReserve;
+        liquidity[msg.sender] += liquidityMinted;
+        totalLiquidity += liquidityMinted;
+
+        if (!token.transferFrom(msg.sender, address(this), tokenDeposit)) revert TokenTransferFailed();
+
+        emit LiquidityProvided(msg.sender, liquidityMinted, ethInput, tokenDeposit);
+        return tokenDeposit;
     }
 
     function withdraw(uint256 amount) public returns (uint256 ethAmount, uint256 tokenAmount) {
-        // Your code here...
+        uint256 availableLp = liquidity[msg.sender];
+        if (availableLp < amount) revert InsufficientLiquidity(availableLp, amount);
+
+        uint256 tokenReserve = token.balanceOf(address(this));
+        uint256 ethReserve = address(this).balance;
+        uint256 ethWithdrawn = amount * ethReserve / totalLiquidity;
+        uint256 tokensWithdrawn = amount * tokenReserve / totalLiquidity;
+        liquidity[msg.sender] -= amount;
+        totalLiquidity -= amount;
+
+        (bool sent, ) = payable(msg.sender).call{ value: ethWithdrawn }("");
+        if (!sent) revert EthTransferFailed(msg.sender, ethWithdrawn);
+
+        if (!token.transfer(msg.sender, tokensWithdrawn)) revert TokenTransferFailed();
+        emit LiquidityRemoved(msg.sender, amount, tokensWithdrawn, ethWithdrawn);
+        return (ethWithdrawn, tokensWithdrawn);
     }
 }

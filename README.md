@@ -74,7 +74,7 @@
 ## 前端地址
 
 - 本地开发: http://localhost:3000
-- 线上地址 (Vercel): https://challenge-80luzfxr5-lorstyangs-projects.vercel.app
+- 线上地址 (Vercel): https://challenge-dex-theta.vercel.app/
 
 ## 目录结构
 

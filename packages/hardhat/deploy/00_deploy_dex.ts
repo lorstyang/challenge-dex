@@ -22,6 +22,9 @@ const deployYourContract: DeployFunction = async function (hre: HardhatRuntimeEn
   */
   const { deployer } = await hre.getNamedAccounts();
   const { deploy } = hre.deployments;
+  const isLocalNetwork = hre.network.name === "hardhat" || hre.network.name === "localhost";
+  const initialLiquidityEth = process.env.DEX_INIT_ETH ?? (isLocalNetwork ? "5" : "0.01");
+  const initialLiquidity = hre.ethers.parseEther(initialLiquidityEth);
 
   await deploy("Balloons", {
     from: deployer,
@@ -55,10 +58,16 @@ const deployYourContract: DeployFunction = async function (hre: HardhatRuntimeEn
   const dexAddress = await dex.getAddress();
   console.log("Approving DEX (" + dexAddress + ") to take Balloons from main account...");
   // If you are going to the testnet make sure your deployer account has enough ETH
-  await balloons.approve(dexAddress, hre.ethers.parseEther("100"));
+  await balloons.approve(dexAddress, initialLiquidity);
+  const deployerBalance = await hre.ethers.provider.getBalance(deployer);
+  if (deployerBalance < initialLiquidity) {
+    throw new Error(
+      `Insufficient ETH for DEX init: balance=${hre.ethers.formatEther(deployerBalance)} ETH, required at least ${initialLiquidityEth} ETH + gas. Fund deployer or set DEX_INIT_ETH.`,
+    );
+  }
   console.log("INIT exchange...");
-  await dex.init(hre.ethers.parseEther("5"), {
-    value: hre.ethers.parseEther("5"),
+  await dex.init(initialLiquidity, {
+    value: initialLiquidity,
     gasLimit: 200000,
   });
 };
